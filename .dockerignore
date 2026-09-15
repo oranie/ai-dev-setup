@@ -1,0 +1,45 @@
+# Git / バージョン管理
+.git
+.gitignore
+
+# ドキュメント・リファレンス
+docs/
+*.md
+README*
+LICENSE*
+
+# テスト・検証用コード
+tests/
+scripts/scratch/
+
+# エージェント設定・フック
+.agents/
+.gemini/
+.claude/
+
+# データ・キャッシュ・成果物
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.csv
+*.parquet
+*.dump
+build/
+dist/
+
+# 機密情報・環境設定
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+token.json
+service-account*.json
+
+# ランタイムキャッシュ
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+.npm/
