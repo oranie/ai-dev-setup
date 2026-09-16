@@ -1,0 +1,27 @@
+name: Tests
+
+# **このテンプレート自身のテストを Pull Request で走らせる。**
+#
+# AGENTS.md 2-A-7 が「PRの時点でテストが走る構成にすること」と定めている。
+# テンプレート側がそれを満たしていないと、規約に説得力がない。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 標準ライブラリだけで動くので依存の導入は無い。
+      # ここに pip install が要るようになったら、ロックファイルを足すこと。
+      - name: Run Unit Tests
+        run: python3 -m unittest discover tests -v

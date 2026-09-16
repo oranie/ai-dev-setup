@@ -1,72 +1,45 @@
 #!/usr/bin/env python3
-"""
-Antigravity PreToolUse ガードスクリプト
+"""Antigravity の PreToolUse ガード（受け渡しだけを行う）。
 
-run_command の実行前に危険なコマンドや誤操作パターンを検査し、
-誤コミット（git add -A等）や破壊的コマンドをブロックします。
-"""
+**判断は guards/rules.py にある。** ここを直してもルールは変わらない。
+ルールを足すときは guards/rules.py を直すこと（Claude Code 側と共通）。
 
-import sys
+入力: 標準入力に {"toolCall": {"name": ..., "args": {"CommandLine": ...}}}
+出力: 標準出力に {"decision": "allow" | "deny", "reason": ...}
+"""
 import json
-import re
+import os
+import sys
 
-# ブロック対象のコマンドパターンと理由
-DANGEROUS_PATTERNS = [
-    (
-        r"\bgit\s+add\s+(-A|--all|\.)(\s|$)",
-        "git add -A / git add . は機密情報やビルドキャッシュの誤コミットを防ぐため禁止されています。変更対象ファイルを明示して 'git add <ファイルパス>' を実行してください。"
-    ),
-    (
-        r"\bgit\s+commit\s+-[a-zA-Z]*a[a-zA-Z]*\b",
-        "git commit -a / -am は意図しない差分の自動コミットを防ぐため非推奨です。対象ファイルを個別にステージングした上でコミットしてください。"
-    ),
-    (
-        r"\brm\s+-[a-zA-Z]*[rf][a-zA-Z]*\s+(/|/\*|\.)(?:\s|$)",
-        "ルートまたはカレント全域に対する破壊的削除コマンドは禁止されています。"
-    ),
-    (
-        r"\bgit\s+push\s+.*--force\b",
-        "強制プッシュ (git push --force) はリモート履歴の破壊を防ぐためブロックされました。"
-    )
-]
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-def evaluate_command(command_line: str):
-    cmd = command_line.strip()
-    for pattern, reason in DANGEROUS_PATTERNS:
-        if re.search(pattern, cmd):
-            return {
-                "decision": "deny",
-                "reason": reason
-            }
-    return {
-        "decision": "allow"
-    }
+from guards.rules import evaluate  # noqa: E402
 
-def main():
+
+def main() -> None:
     try:
-        raw_input = sys.stdin.read()
-        if not raw_input.strip():
+        raw = sys.stdin.read()
+        if not raw.strip():
             print(json.dumps({"decision": "allow"}))
             return
-
-        payload = json.loads(raw_input)
-        tool_call = payload.get("toolCall", {})
-        tool_name = tool_call.get("name", "")
-        tool_args = tool_call.get("args", {})
-
-        if tool_name == "run_command":
-            cmd = tool_args.get("CommandLine", "")
-            result = evaluate_command(cmd)
-            print(json.dumps(result, ensure_ascii=False))
+        payload = json.loads(raw)
+        call = payload.get("toolCall", {})
+        if call.get("name") != "run_command":
+            print(json.dumps({"decision": "allow"}))
             return
-
-        # その他のツールは許可
-        print(json.dumps({"decision": "allow"}))
-
+        verdict = evaluate(call.get("args", {}).get("CommandLine", ""))
+        if verdict.allowed:
+            print(json.dumps({"decision": "allow"}))
+        else:
+            print(json.dumps({"decision": "deny", "reason": verdict.reason},
+                             ensure_ascii=False))
     except Exception as e:
-        # スクリプト自体で例外が発生した場合は安全のためaskまたはallowにする
-        sys.stderr.write(f"Guard error: {e}\n")
+        # **ここで allow を返すと、ガードが壊れていることに誰も気づけない。**
+        # 標準エラーへ出したうえで allow にするのは、ガードの不具合で作業全体が
+        # 止まるのを避けるため。メッセージが出ていたら必ず直すこと。
+        sys.stderr.write(f"[pre_tool_guard] ガードが動いていません（要修正）: {e}\n")
         print(json.dumps({"decision": "allow"}))
+
 
 if __name__ == "__main__":
     main()

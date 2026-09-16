@@ -5,7 +5,7 @@ import sys
 import os
 
 class TestPreInvocationChecker(unittest.TestCase):
-    script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "pre_invocation_checker.py")
+    script_path = os.path.join(os.path.dirname(__file__), "..", ".agents", "hooks", "pre_invocation_checker.py")
 
     def run_hook(self, payload_dict_or_str):
         proc = subprocess.Popen(

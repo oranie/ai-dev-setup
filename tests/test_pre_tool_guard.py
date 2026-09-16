@@ -5,7 +5,7 @@ import sys
 import os
 
 class TestPreToolGuard(unittest.TestCase):
-    script_path = os.path.join(os.path.dirname(__file__), "..", "scripts", "hooks", "pre_tool_guard.py")
+    script_path = os.path.join(os.path.dirname(__file__), "..", ".agents", "hooks", "pre_tool_guard.py")
 
     def run_guard(self, payload):
         proc = subprocess.Popen(
@@ -35,7 +35,9 @@ class TestPreToolGuard(unittest.TestCase):
             }
             res = self.run_guard(payload)
             self.assertEqual(res.get("decision"), "deny", f"Failed to block: {cmd}")
-            self.assertIn("禁止されています", res.get("reason", ""))
+            # 理由は「何をすればよいか」まで書く決まり（guards/rules.py）。
+            # 特定の文言で縛ると、メッセージを改善するたびにテストが落ちる。
+            self.assertTrue(res.get("reason", "").strip(), f"止めた理由が空: {cmd}")
 
     def test_blocks_git_commit_auto(self):
         payload = {
