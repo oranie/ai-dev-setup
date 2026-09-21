@@ -64,11 +64,15 @@ class EveryConfiguredHookExists(unittest.TestCase):
                     "フックは黙って素通りする")
 
     def test_the_claude_code_hooks_resolve(self):
+        # PreToolUse だけでなく、**設定に書かれた全イベント**を見る。
+        # PostToolUse を足したときに、そこだけ検査から漏れるのを防ぐ。
         config = json.loads(_read(".claude", "settings.json"))
         commands = [h["command"]
-                    for entry in config["hooks"]["PreToolUse"]
+                    for event in config["hooks"].values()
+                    for entry in event
                     for h in entry["hooks"]]
         self.assertTrue(commands, "settings.json からフックを 1 つも読み取れていない")
+        self.assertIn("PreToolUse", config["hooks"], "危険コマンドのガードが外れている")
         for command in commands:
             with self.subTest(command=command):
                 path = self._path_in(command)
