@@ -31,7 +31,8 @@ AIエージェント（Antigravity, Claude Code等）を用いたソフトウェ
 4. **入力トークン（Token In）の過小評価**:
    1ターン平均約39万トークン（累計20.9億トークン通過）。手戻りが発生するたびに過去履歴とルールが再入力され、コストが急増します。
 
-この損失を防ぐため、本リポジトリでは**「1. Agent側で行うこと」**と**「2. プロンプト自体の品質を高める仕組み」**の2つの観点から総合的な対策を組み込んでいます。
+この損失を防ぐため、本リポジトリでは**「1. Agent側で行うこと」**、**「2. プロンプト自体の品質を高める仕組み」**、
+**「3. 大きい出力を本体の会話に持ち込まないこと」**の3つの観点から対策を組み込んでいます。
 詳細な設計思想、フロー図、3層防御モデルについては [docs/design/prompt_quality_gate.md](docs/design/prompt_quality_gate.md) に記録しています。
 
 ---
@@ -130,6 +131,43 @@ AIエージェント（Antigravity, Claude Code等）を用いたソフトウェ
 
 ---
 
+## 観点3: 大きい出力を本体の会話に持ち込まない（委譲）
+
+モデルへの入力は毎ターン全履歴が送り直されます。テストの全件出力を 1 回会話に載せると、
+**そのセッションの残り全部のターンで再送**されます。1 ターン平均 39 万トークンという実測値の
+中身は、ここに積もったものです。
+
+対処はツールによって変わります。共通の原則は `AGENTS.md` 2-A-9 に置き、実装は分けています。
+
+| ツール | どうするか |
+|---|---|
+| Claude Code | `.claude/agents/` のサブエージェントへ委譲する。会話履歴を引き継がない別コンテキストで動くので、生ログは向こうに閉じ、要約だけが返る |
+| Antigravity | 同等の仕組みが無い。**文脈の圧縮はハーネスに任せ**、出力の絞り込みとスクラッチの隔離だけを守る（`GEMINI.md` 1-3） |
+
+委譲先は 5 本です。線は **「コードを生成するかどうか」**。
+
+| agent | モデル | 何を任せるか |
+|---|---|---|
+| `test-runner` | `claude-sonnet-5` | テスト・検証の実行。落ちたものだけ返す |
+| `repo-scout` | `claude-sonnet-5` | コードの在処探し。パスと行番号だけ返す |
+| `reference-surveyor` | `claude-sonnet-5` | 公式ドキュメント調査と `docs/references/` への記録 |
+| `implementer` | `claude-opus-5` | プラン通りのコード生成（テスト追加を含む） |
+| `implementer-lite` | `claude-sonnet-5` | 決まった実行、文書の修正、定数・閾値の書き換え |
+
+- **本体が高いモデル（Fable 5.1 など）のときほど効きます。** 計画・判断・レビューだけを手元に残し、
+  決まった実行と範囲の決まった実装を出します。本体が Sonnet のときは、この理由での委譲は効きません
+- **委譲は無料ではありません。** 向こうは規約を読み直すところから始まるので、軽い作業では
+  往復のほうが高くつきます。目安は「出力が数百行を超えるか」
+- **本番操作・PR・マージは委譲しません。** 取り返しがつかないものは手元に残します
+- `PostToolUse` フック（`.claude/hooks/big_output.py`）が、大きい出力を本体で受けた直後に
+  「次は向こうへ投げる」と知らせます。**止めはしません**
+- `model:` をエイリアス（`sonnet`）で書くとプロバイダによって世代が変わるため、フル ID で固定し、
+  `tests/test_subagents.py` で縛っています
+
+設計と理由は [docs/design/subagents.md](docs/design/subagents.md) に記録しています。
+
+---
+
 ## ディレクトリ構成
 
 ```text
@@ -143,7 +181,8 @@ ai-dev-setup/
 │   └── rules.py               # 【重要】危険コマンド判定の**唯一の定義**。両エージェントが読む
 ├── docs/
 │   ├── design/
-│   │   └── prompt_quality_gate.md   # プロンプト品質ゲートの設計（フロー図・3層防御モデル）
+│   │   ├── prompt_quality_gate.md   # プロンプト品質ゲートの設計（フロー図・3層防御モデル）
+│   │   └── subagents.md             # 【観点3】委譲の設計（何を別コンテキストへ出すか）
 │   ├── prompts/                     # 【観点2】プロンプト品質向上ガイド
 │   │   ├── templates.md             # タスク別テンプレート
 │   │   └── mobile_guide.md          # ショートコードおよびモバイル短縮記法ガイド
@@ -158,15 +197,23 @@ ai-dev-setup/
 │   │   └── pre_invocation_checker.py # 5大受入基準（DoI）を推論前に注入
 │   └── skills/                # reference-survey / leak-and-wiring-audit / code-quality-audit
 ├── .claude/                   # Claude Code
-│   ├── settings.json          # PreToolUse フックの定義
+│   ├── settings.json          # PreToolUse / PostToolUse フックの定義
 │   ├── hooks/
-│   │   └── guard_bash.py             # guards/rules.py を呼ぶだけの受け渡し
+│   │   ├── guard_bash.py             # guards/rules.py を呼ぶだけの受け渡し
+│   │   └── big_output.py             # 大きい出力が会話に載ったことを知らせる（止めない）
+│   ├── agents/                # 【観点3】委譲先。Claude Code 固有
+│   │   ├── test-runner.md            # 回す（落ちたものだけ返す）
+│   │   ├── repo-scout.md             # 探す（パスと行番号だけ返す）
+│   │   ├── reference-surveyor.md     # 調べて docs/references/ に書く
+│   │   ├── implementer.md            # プラン通りにコードを生成する
+│   │   └── implementer-lite.md       # 決まった実行と、文書・定数の変更
 │   └── skills/                # .agents/skills と同一（一致をテストで縛る）
 ├── .github/workflows/
 │   └── tests.yml              # Pull Request でテストを走らせる
 └── tests/
     ├── test_guard_rules.py           # 何を止めて何を通すか
     ├── test_hook_wiring.py           # 設定が指すスクリプトの実在、両エージェントの判断一致
+    ├── test_subagents.py             # 委譲先の model 固定・書き込み権限・表との食い違い
     ├── test_pre_tool_guard.py        # Antigravity 側の入出力
     └── test_pre_invocation_checker.py # 門前チェックフック
 ```
