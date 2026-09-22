@@ -146,6 +146,22 @@ python3 -m unittest tests.test_hook_wiring -v
 - 本当に必要なときは、コマンドの先頭に `AI_DEV_ALLOW_DESTRUCTIVE=1` を付けると通ります（何を許したかが記録に残ります）
 - **`PreInvocation` ガード**（Antigravity）: モデル推論開始の直前に、5大受入基準（DoI）のリマインダーを自動注入し、推測による暴走を抑制。
 
+### 6. PR を着地させるまでの定型化 (`/land`)
+
+PR を出したあと、**CI が緑になるのを待ってマージし、関連 Issue とドキュメントを片付けて
+セッションを閉じるまで**を 1 本の手順にしました。出しただけで次へ移ると、緑を確認していない
+変更が積み上がります。
+
+- Claude Code: `/land`（`.claude/skills/land/`）。引数なしで今のブランチの PR、`/land 42` で番号指定
+- それ以外のツール: 同じ手順が `AGENTS.md` 2-A-10 に規約として書いてあります
+
+止めている事故は次の 4 つです。
+
+- CI を `sleep` でポーリングする（待つ手段を使う）
+- 赤を skip や `--no-verify` で迂回する
+- **PR を閉じて同じ内容で出し直す**（GitHub は閉じても実行を止めないので、CI が二重に走る）
+- マージした瞬間に Issue を閉じる（**マージ後の確認が済んでから**閉じる。`Closes #N` は使わない）
+
 ---
 
 ## 観点2: プロンプト自体の品質を高める仕組み（入力支援・テンプレート・短縮記法）
@@ -261,13 +277,15 @@ ai-dev-setup/
 │   │   ├── reference-surveyor.md     # 調べて docs/references/ に書く
 │   │   ├── implementer.md            # プラン通りにコードを生成する
 │   │   └── implementer-lite.md       # 決まった実行と、文書・定数の変更
-│   └── skills/                # .agents/skills と同一（一致をテストで縛る）
+│   └── skills/                # 監査 3 つは .agents/skills と同一（一致をテストで縛る）
+│       └── land/              # PR を着地させるまでの手順。Claude Code 固有
 ├── .github/workflows/
 │   └── tests.yml              # Pull Request でテストを走らせる
 └── tests/
     ├── test_guard_rules.py           # 何を止めて何を通すか
     ├── test_hook_wiring.py           # 設定が指すスクリプトの実在、両エージェントの判断一致
     ├── test_subagents.py             # 委譲先の model 固定・書き込み権限・表との食い違い
+    ├── test_skills.py                # スキルの name とディレクトリ、共有スキルの取りこぼし
     ├── test_pre_tool_guard.py        # Antigravity 側の入出力
     └── test_pre_invocation_checker.py # 門前チェックフック
 ```
