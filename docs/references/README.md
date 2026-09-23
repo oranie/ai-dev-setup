@@ -17,3 +17,7 @@ AIエージェントによる開発において、記憶や推測に基づく当
    - `infra-<対象名>.md` (例: `infra-docker.md`, `infra-sqlite.md`)
 4. **セッション・エージェント間の引き継ぎ**:
    AntigravityとClaude Codeのどちらが調査した場合でもここにコミットし、後続のプロンプトや別のエージェントが再調査なしで利用できるようにします。
+
+## 一覧
+- [cloud-iam-permissions.md](./cloud-iam-permissions.md): クラウド IAM 権限の調べ方
+- [claude-platform-cost.md](./claude-platform-cost.md): プロンプトキャッシュ、指示の監査、effort の調整（Opus 5.5 公開時, 2026-09-23）

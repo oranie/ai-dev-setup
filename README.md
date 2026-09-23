@@ -199,7 +199,7 @@ python3 -m unittest tests.test_hook_wiring -v
 | `test-runner` | `claude-sonnet-5` | テスト・検証の実行。落ちたものだけ返す |
 | `repo-scout` | `claude-sonnet-5` | コードの在処探し。パスと行番号だけ返す |
 | `reference-surveyor` | `claude-sonnet-5` | 公式ドキュメント調査と `docs/references/` への記録 |
-| `implementer` | `claude-opus-5` | プラン通りのコード生成（テスト追加を含む） |
+| `implementer` | `claude-opus-5-5` | プラン通りのコード生成（テスト追加を含む） |
 | `implementer-lite` | `claude-sonnet-5` | 決まった実行、文書の修正、定数・閾値の書き換え |
 
 - **本体が高いモデル（Fable 5.1 など）のときほど効きます。** 計画・判断・レビューだけを手元に残し、
