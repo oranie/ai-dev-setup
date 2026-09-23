@@ -34,6 +34,18 @@ python3 -m unittest discover tests
 残りは上の 3 つを動かすために置いてあるもので、**最初に読む必要はありません。**
 何がどこにあるかは[ディレクトリ構成](#ディレクトリ構成)にまとめてあります。
 
+### 日々の流れ
+
+1. **指示を出す。** `docs/prompts/templates.md` の雛形を使う。曖昧なまま投げない
+2. **実装して、テストを通す。** 出力の大きい実行は `test-runner` に投げる（[観点3](#観点3-大きい出力を本体の会話に持ち込まない委譲)）
+3. **ブランチを切って PR を出す。** 既定ブランチへ直接 push しない
+4. **`/land` で着地させる。** CI が緑になるのを待つ、マージする、Issue とドキュメントを片付ける、
+   引き継ぎを残す（[観点1-6](#6-pr-を着地させるまでの定型化-land)）
+
+`/land` は Claude Code のスキルです。引数なしで今のブランチの PR、`/land 42` で番号を指定します。
+**PR は作りません**（出すところまでは自分でやってから呼ぶ）。`gh` が要ります。
+Antigravity で作業しているときは、同じ手順が `AGENTS.md` 2-A-10 に規約として書いてあります。
+
 ### 自分のプロジェクトに合わせて削る
 
 `AGENTS.md` 第2章の「2-B. 該当する場合に適用する」には、時系列データを扱う場合と
@@ -145,6 +157,22 @@ python3 -m unittest tests.test_hook_wiring -v
 - **`--force-with-lease` は通します。** squash マージ後にブランチを作り直す運用で必要になるため
 - 本当に必要なときは、コマンドの先頭に `AI_DEV_ALLOW_DESTRUCTIVE=1` を付けると通ります（何を許したかが記録に残ります）
 - **`PreInvocation` ガード**（Antigravity）: モデル推論開始の直前に、5大受入基準（DoI）のリマインダーを自動注入し、推測による暴走を抑制。
+
+### 6. PR を着地させるまでの定型化 (`/land`)
+
+PR を出したあと、**CI が緑になるのを待ってマージし、関連 Issue とドキュメントを片付けて
+セッションを閉じるまで**を 1 本の手順にしました。出しただけで次へ移ると、緑を確認していない
+変更が積み上がります。
+
+- Claude Code: `/land`（`.claude/skills/land/`）。引数なしで今のブランチの PR、`/land 42` で番号指定
+- それ以外のツール: 同じ手順が `AGENTS.md` 2-A-10 に規約として書いてあります
+
+止めている事故は次の 4 つです。
+
+- CI を `sleep` でポーリングする（待つ手段を使う）
+- 赤を skip や `--no-verify` で迂回する
+- **PR を閉じて同じ内容で出し直す**（GitHub は閉じても実行を止めないので、CI が二重に走る）
+- マージした瞬間に Issue を閉じる（**マージ後の確認が済んでから**閉じる。`Closes #N` は使わない）
 
 ---
 
@@ -261,13 +289,15 @@ ai-dev-setup/
 │   │   ├── reference-surveyor.md     # 調べて docs/references/ に書く
 │   │   ├── implementer.md            # プラン通りにコードを生成する
 │   │   └── implementer-lite.md       # 決まった実行と、文書・定数の変更
-│   └── skills/                # .agents/skills と同一（一致をテストで縛る）
+│   └── skills/                # 監査 3 つは .agents/skills と同一（一致をテストで縛る）
+│       └── land/              # PR を着地させるまでの手順。Claude Code 固有
 ├── .github/workflows/
 │   └── tests.yml              # Pull Request でテストを走らせる
 └── tests/
     ├── test_guard_rules.py           # 何を止めて何を通すか
     ├── test_hook_wiring.py           # 設定が指すスクリプトの実在、両エージェントの判断一致
     ├── test_subagents.py             # 委譲先の model 固定・書き込み権限・表との食い違い
+    ├── test_skills.py                # スキルの name とディレクトリ、共有スキルの取りこぼし
     ├── test_pre_tool_guard.py        # Antigravity 側の入出力
     └── test_pre_invocation_checker.py # 門前チェックフック
 ```
